@@ -17,6 +17,37 @@ try:
 except ImportError:  # Python 2 fallback
     from urllib import urlopen
 
+# from https://github.com/kennethreitz/requests/commit/f3159ed4f619124ab4b47c4e0f06f96daed762ce
+def parse_header_links(value):
+    """Return a dict of parsed link headers proxies.
+
+    i.e. Link: <http:/.../front.jpeg>; rel=front; type="image/jpeg",<http://.../back.jpeg>; rel=back;type="image/jpeg"
+
+    """
+    links = []
+    replace_chars = " '\""
+    for val in value.split(","):
+        try:
+            url, params = val.split(";", 1)
+        except ValueError:
+            url, params = val, ''
+        link = {}
+        link["url"] = url.strip("<> '\"")
+        for param in params.split(";"):
+            try:
+                key,value = param.split("=")
+            except ValueError:
+                break
+            link[key.strip(replace_chars)] = value.strip(replace_chars)
+        links.append(link)
+    return links
+
+def extract_next_link(s):
+    for v in parse_header_links(s):
+        if v["rel"] == "next":
+            return v["url"]
+    return None
+
 def repos(user):
     """
     Get all of the repositories for a user.
@@ -24,16 +55,25 @@ def repos(user):
     :param user: the user to get the repositories for
     :returns: a list of description/url dicts
     """
+    #Link:<https://api.github.com/user/52677/repos?page=2>; rel="next", <https://api.github.com/user/52677/repos?page=3>; rel="last"
 
-    res_handle = urlopen("https://api.github.com/users/%s/repos" % user)
-    res_encoding = "utf8"
-    res_json = json.loads(res_handle.read().decode(res_encoding))
+    url = "https://api.github.com/users/%s/repos" % user
+    while url:
+        res_handle = urlopen(url)
+        link_header = res_handle.info()["Link"]
+        if link_header:
+            url = extract_next_link(link_header)
+        else:
+            url = None
+        res_encoding = "utf8"
+        res_json = json.loads(res_handle.read().decode(res_encoding))
 
-    for repo in res_json:
-        yield {
-            "description": repo["description"],
-            "url":         repo["git_url"],
-        }
+        for repo in res_json:
+            print(repo["git_url"])
+            yield {
+                "description": repo["description"],
+                "url":         repo["git_url"],
+            }
 
 
 def _repo_already_mirrored(url):

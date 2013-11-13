@@ -55,7 +55,6 @@ def repos(user):
     :param user: the user to get the repositories for
     :returns: a list of description/url dicts
     """
-    #Link:<https://api.github.com/user/52677/repos?page=2>; rel="next", <https://api.github.com/user/52677/repos?page=3>; rel="last"
 
     url = "https://api.github.com/users/%s/repos" % user
     while url:
